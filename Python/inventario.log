@@ -1,14 +1,26 @@
-2025-07-28 15:26:25,103 [INFO] package: mysql.connector.plugins
-2025-07-28 15:26:25,104 [INFO] plugin_name: mysql_native_password
-2025-07-28 15:26:25,107 [INFO] AUTHENTICATION_PLUGIN_CLASS: MySQLNativePasswordAuthPlugin
-2025-07-28 15:27:23,705 [INFO] package: mysql.connector.plugins
-2025-07-28 15:27:23,706 [INFO] plugin_name: mysql_native_password
-2025-07-28 15:27:23,707 [INFO] AUTHENTICATION_PLUGIN_CLASS: MySQLNativePasswordAuthPlugin
-2025-07-28 15:29:30,934 [WARNING] Outra inst‚ncia j· est· rodando. Abortando.
-2025-07-28 15:29:57,655 [WARNING] Outra inst‚ncia j· est· rodando. Abortando.
-2025-07-28 15:30:17,684 [INFO] package: mysql.connector.plugins
-2025-07-28 15:30:17,685 [INFO] plugin_name: mysql_native_password
-2025-07-28 15:30:17,686 [INFO] AUTHENTICATION_PLUGIN_CLASS: MySQLNativePasswordAuthPlugin
-2025-07-28 15:30:48,567 [INFO] package: mysql.connector.plugins
-2025-07-28 15:30:48,567 [INFO] plugin_name: mysql_native_password
-2025-07-28 15:30:48,568 [INFO] AUTHENTICATION_PLUGIN_CLASS: MySQLNativePasswordAuthPlugin
+2025-07-29 11:48:08,431 [INFO] package: mysql.connector.plugins
+2025-07-29 11:48:08,432 [INFO] plugin_name: mysql_native_password
+2025-07-29 11:48:08,434 [INFO] AUTHENTICATION_PLUGIN_CLASS: MySQLNativePasswordAuthPlugin
+2025-07-29 11:50:09,700 [INFO] package: mysql.connector.plugins
+2025-07-29 11:50:09,701 [INFO] plugin_name: mysql_native_password
+2025-07-29 11:50:09,702 [INFO] AUTHENTICATION_PLUGIN_CLASS: MySQLNativePasswordAuthPlugin
+2025-07-29 15:04:16,866 [INFO] package: mysql.connector.plugins
+2025-07-29 15:04:16,867 [INFO] plugin_name: mysql_native_password
+2025-07-29 15:04:16,885 [INFO] AUTHENTICATION_PLUGIN_CLASS: MySQLNativePasswordAuthPlugin
+2025-07-29 15:07:28,459 [INFO] package: mysql.connector.plugins
+2025-07-29 15:07:28,459 [INFO] plugin_name: mysql_native_password
+2025-07-29 15:07:28,461 [INFO] AUTHENTICATION_PLUGIN_CLASS: MySQLNativePasswordAuthPlugin
+2025-07-30 09:05:32,726 [INFO] package: mysql.connector.plugins
+2025-07-30 09:05:32,726 [INFO] plugin_name: mysql_native_password
+2025-07-30 09:05:32,730 [INFO] AUTHENTICATION_PLUGIN_CLASS: MySQLNativePasswordAuthPlugin
+2025-07-30 09:06:57,524 [INFO] package: mysql.connector.plugins
+2025-07-30 09:06:57,525 [INFO] plugin_name: mysql_native_password
+2025-07-30 09:06:57,526 [INFO] AUTHENTICATION_PLUGIN_CLASS: MySQLNativePasswordAuthPlugin
+2025-07-30 09:26:55,313 [INFO] package: mysql.connector.plugins
+2025-07-30 09:26:55,314 [INFO] plugin_name: mysql_native_password
+2025-07-30 09:26:55,316 [INFO] AUTHENTICATION_PLUGIN_CLASS: MySQLNativePasswordAuthPlugin
+2025-07-30 09:27:58,347 [INFO] package: mysql.connector.plugins
+2025-07-30 09:27:58,348 [INFO] plugin_name: mysql_native_password
+2025-07-30 09:27:58,349 [INFO] AUTHENTICATION_PLUGIN_CLASS: MySQLNativePasswordAuthPlugin
+2025-07-30 09:27:58,667 [INFO]  Dados inseridos ou atualizados com sucesso!
+2025-07-30 09:30:01,843 [WARNING] Outra inst√¢ncia j√° est√° rodando. Abortando.

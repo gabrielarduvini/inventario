@@ -1,146 +1,168 @@
 import os
 import sys
-import socket
-import platform
-import psutil
 import uuid
+import socket
+import psutil
+import cpuinfo
 import logging
-import requests
-import tempfile
-import mysql.connector
-from cpuinfo import get_cpu_info
-from pathlib import Path
+import getpass
+import win32com.client
 from datetime import datetime
+import mysql.connector
+from mysql.connector import Error
+import wmi
+import netifaces
+
+LOCKFILE = os.path.join(os.getenv("TEMP"), "inventario.lock")
+
+# Caminho do arquivo de log (na mesma pasta do executável ou script)
+if getattr(sys, 'frozen', False):
+    log_path = os.path.join(os.path.dirname(sys.executable), "inventario.log")
+else:
+    log_path = os.path.join(os.path.dirname(__file__), "inventario.log")
 
 # Configuração de log
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s [%(levelname)s] %(message)s',
-    handlers=[logging.FileHandler("inventario.log"), logging.StreamHandler()]
-)
+file_handler = logging.FileHandler(log_path, encoding='utf-8')
+console_handler = logging.StreamHandler(sys.stdout)
+formatter = logging.Formatter('%(asctime)s [%(levelname)s] %(message)s')
+file_handler.setFormatter(formatter)
+console_handler.setFormatter(formatter)
+logging.basicConfig(level=logging.INFO, handlers=[file_handler, console_handler])
 
-def obter_dados_maquina():
-    try:
-        machine_id = hex(uuid.getnode())  # ID único baseado no MAC
-        username = os.getlogin()
-        hostname = socket.gethostname()
-        os_info = platform.platform()
-        ip_local = socket.gethostbyname(hostname)
+def ja_esta_rodando():
+    if os.path.exists(LOCKFILE):
+        logging.warning("Outra instância já está rodando. Abortando.")
+        return True
+    with open(LOCKFILE, 'w') as f:
+        f.write(str(os.getpid()))
+    return False
 
-        try:
-            ip_public = requests.get('https://api.ipify.org').text
-        except Exception:
-            ip_public = 'Desconhecido'
+def remover_lock():
+    if os.path.exists(LOCKFILE):
+        os.remove(LOCKFILE)
 
-        cpu = get_cpu_info().get('brand_raw', 'Desconhecido')
-        ram = f"{round(psutil.virtual_memory().total / (1024**3), 2)} GB"
-        disk = f"{round(psutil.disk_usage('/').total / (1024**3), 2)} GB"
+def tipo_maquina():
+    c = wmi.WMI()
+    for system in c.Win32_SystemEnclosure():
+        if system.ChassisTypes:
+            tipo = system.ChassisTypes[0]
+            if tipo in [8, 9, 10, 14]:
+                return "Notebook"
+            elif tipo in [3, 4, 5, 6, 7, 15]:
+                return "Desktop"
+    return "Desconhecido"
 
-        return {
-            'machine_id': machine_id,
-            'username': username,
-            'hostname': hostname,
-            'os': os_info,
-            'ip_local': ip_local,
-            'ip_public': ip_public,
-            'cpu': cpu,
-            'ram': ram,
-            'disk': disk
-        }
-    except Exception as e:
-        logging.error(f"Erro ao obter dados da máquina: {e}")
-        return None
+def fabricante_modelo_serial():
+    c = wmi.WMI()
+    system = c.Win32_ComputerSystem()[0]
+    bios = c.Win32_BIOS()[0]
+    return system.Manufacturer.strip(), system.Model.strip(), bios.SerialNumber.strip()
 
-def inserir_no_banco(data):
+def obter_ips():
+    ip_wifi = None
+    ip_ethernet = None
+    interfaces = netifaces.interfaces()
+    for iface in interfaces:
+        addrs = netifaces.ifaddresses(iface)
+        if netifaces.AF_INET in addrs:
+            ip = addrs[netifaces.AF_INET][0]['addr']
+            desc = iface.lower()
+            if "wi-fi" in desc or "wlan" in desc:
+                ip_wifi = ip
+            elif "ethernet" in desc or "eth" in desc:
+                ip_ethernet = ip
+    return ip_wifi, ip_ethernet
+
+def coletar_dados():
+    fabricante, modelo, serial = fabricante_modelo_serial()
+    ip_wifi, ip_ethernet = obter_ips()
+    info = {
+        "usuario": getpass.getuser(),
+        "ip": socket.gethostbyname(socket.gethostname()),
+        "ram": round(psutil.virtual_memory().total / (1024 ** 3), 2),
+        "armazenamento": round(psutil.disk_usage('/').total / (1024 ** 3), 2),
+        "processador": cpuinfo.get_cpu_info()['brand_raw'],
+        "id_unico": str(uuid.getnode()),
+        "created_at": datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
+        "tipo_maquina": tipo_maquina(),
+        "fabricante": fabricante,
+        "modelo": modelo,
+        "numero_serie": serial,
+        "ip_wifi": ip_wifi,
+        "ip_ethernet": ip_ethernet
+    }
+    return info
+
+def inserir_no_banco(dados):
     try:
         conn = mysql.connector.connect(
-            host="10.200.9.66",
-            user="jadiran",
-            password="123",
-            database="sistema_auth"
+            host='SEU_HOST',
+            user='SEU_USUARIO',
+            password='SUA_SENHA',
+            database='sistema_auth'
         )
         cursor = conn.cursor()
 
-        cursor.execute("""
-            INSERT INTO computers (machine_id, username, hostname, os, ip_local, ip_public, cpu, ram, disk)
-            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
-            ON DUPLICATE KEY UPDATE
-                username=VALUES(username),
-                hostname=VALUES(hostname),
-                os=VALUES(os),
-                ip_local=VALUES(ip_local),
-                ip_public=VALUES(ip_public),
-                cpu=VALUES(cpu),
-                ram=VALUES(ram),
-                disk=VALUES(disk),
-                created_at=CURRENT_TIMESTAMP
-        """, (
-            data['machine_id'], data['username'], data['hostname'],
-            data['os'], data['ip_local'], data['ip_public'],
-            data['cpu'], data['ram'], data['disk']
-        ))
-
+        query = '''
+        INSERT INTO computadores (
+            id_unico, usuario, ip, ram, armazenamento, processador, created_at,
+            tipo_maquina, fabricante, modelo, numero_serie, ip_wifi, ip_ethernet
+        )
+        VALUES (
+            %(id_unico)s, %(usuario)s, %(ip)s, %(ram)s, %(armazenamento)s, %(processador)s, %(created_at)s,
+            %(tipo_maquina)s, %(fabricante)s, %(modelo)s, %(numero_serie)s, %(ip_wifi)s, %(ip_ethernet)s
+        )
+        ON DUPLICATE KEY UPDATE
+            usuario=VALUES(usuario),
+            ip=VALUES(ip),
+            ram=VALUES(ram),
+            armazenamento=VALUES(armazenamento),
+            processador=VALUES(processador),
+            created_at=VALUES(created_at),
+            tipo_maquina=VALUES(tipo_maquina),
+            fabricante=VALUES(fabricante),
+            modelo=VALUES(modelo),
+            numero_serie=VALUES(numero_serie),
+            ip_wifi=VALUES(ip_wifi),
+            ip_ethernet=VALUES(ip_ethernet)
+        '''
+        cursor.execute(query, dados)
         conn.commit()
-        cursor.close()
-        conn.close()
-        logging.info("✅ Dados inseridos ou atualizados com sucesso!")
-
-    except mysql.connector.Error as err:
-        logging.error(f"❌ Erro ao conectar/inserir no banco: {err}")
-    except Exception as e:
-        logging.error(f"❌ Erro inesperado: {e}")
+        logging.info("Dados inseridos ou atualizados com sucesso!")
+    except Error as e:
+        logging.error(f"Erro ao conectar/inserir no banco: {e}")
+    finally:
+        if 'conn' in locals() and conn.is_connected():
+            cursor.close()
+            conn.close()
 
 def criar_atalho_startup():
-    try:
-        startup_path = os.path.join(os.getenv('APPDATA'), r"Microsoft\Windows\Start Menu\Programs\Startup")
-        atalho_path = os.path.join(startup_path, "inventario.lnk")
-        exe_path = sys.executable
+    nome_atalho = "Inventario.lnk"
+    caminho_startup = os.path.join(os.getenv("APPDATA"), r"Microsoft\Windows\Start Menu\Programs\Startup")
+    caminho_atalho = os.path.join(caminho_startup, nome_atalho)
 
-        if not os.path.exists(atalho_path):
-            import pythoncom
-            from win32com.client import Dispatch
-            shell = Dispatch('WScript.Shell')
-            shortcut = shell.CreateShortCut(atalho_path)
-            shortcut.Targetpath = exe_path
-            shortcut.WorkingDirectory = os.path.dirname(exe_path)
-            shortcut.save()
-            logging.info("✅ Atalho criado na pasta Startup.")
-        else:
-            logging.info("ℹ️ Atalho já existe na pasta Startup.")
-    except Exception as e:
-        logging.error(f"❌ Erro ao criar atalho de inicialização: {e}")
-
-def is_another_instance_running(lock_file_path):
-    if lock_file_path.exists():
-        try:
-            with lock_file_path.open("r") as f:
-                pid = int(f.read())
-            if pid != os.getpid() and psutil.pid_exists(pid):
-                return True
-        except Exception:
-            pass
-    try:
-        with lock_file_path.open("w") as f:
-            f.write(str(os.getpid()))
-    except Exception as e:
-        logging.error(f"Erro ao criar lock file: {e}")
-    return False
-
-def main():
-    lock_file = Path(tempfile.gettempdir()) / "inventario.lock"
-    if is_another_instance_running(lock_file):
-        logging.warning("⚠️ Outra instância já está rodando. Abortando.")
+    if os.path.exists(caminho_atalho):
+        logging.info("Atalho já existe na pasta Startup.")
         return
 
-    dados = obter_dados_maquina()
-    if dados:
+    shell = win32com.client.Dispatch("WScript.Shell")
+    atalho = shell.CreateShortCut(caminho_atalho)
+    atalho.Targetpath = sys.executable
+    atalho.WorkingDirectory = os.path.dirname(os.path.abspath(__file__))
+    atalho.IconLocation = sys.executable
+    atalho.save()
+    logging.info("Atalho criado na pasta Startup.")
+
+def main():
+    if ja_esta_rodando():
+        return
+
+    try:
+        dados = coletar_dados()
         inserir_no_banco(dados)
         criar_atalho_startup()
+    finally:
+        remover_lock()
 
 if __name__ == "__main__":
     main()
-    try:
-        if sys.stdout.isatty():
-            input("Pressione ENTER para sair...")
-    except Exception:
-        pass
